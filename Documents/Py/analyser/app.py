@@ -114,7 +114,7 @@ slide_options = [
     "Pagetitles",
     "Antal refererende domæner til websitet",
     "EEAT",
-    "Oprettelse af sproglag",
+    "Teknisk sundhedstjek (teknisk SEO)",
     "Bedre indhold",
     "Fokus",
 ]
@@ -334,13 +334,16 @@ OPGAVE:
      * Afsnit 1 beskriver kort, hvad data viser (konkrete tal, mønstre, udvikling, fordeling).
      * Afsnit 2 beskriver de vigtigste problemer/fejl/mangler og det største potentiale – vær meget konkret og ærlig.
    - Hvert afsnit må være op til ca. 3 sætninger.
-   - Efter analyseafsnittene skriver du "**Anbefalinger**" (i fed) på en ny linje og derefter 2–3 punktopstillede anbefalinger, der opsummerer de vigtigste næste skridt.
+   - På slides 1–10 skriver du KUN analyse (ingen sektion "Anbefalinger" på disse slides).
+   - På Slide 11 (Fokus) skriver du efter analysen en tydelig sektion med samlede anbefalinger for hele analysen: start med "**Anbefalinger**" (i fed) på en ny linje og skriv derefter 3–6 punktopstillede anbefalinger, der opsummerer de vigtigste næste skridt på tværs af alle slides.
    - Samlet længde pr. slide bør typisk ligge omkring 800–1200 tegn (du må hellere skrive lidt for meget end for lidt, så længe det kan læses på én slide).
 
 2) Brug faktiske tal og mønstre fra dataen, når det er muligt. Hvis et tal ikke kan aflæses direkte, så brug kvalitative formuleringer som "lav", "mellem", "høj" fremfor at gætte procenter eller eksakte værdier. Du må ikke opfinde konkurrentnavne eller tal – brug kun navne/tal der reelt findes i dataen. Hvis data er begrænsede, skal du stadig skrive en sammenhængende analyse på hver slide baseret på de mønstre, du kan ane kombineret med generel SEO-viden – men du må ALDRIG nævne manglende data, manglende filer, værktøjer eller formuleringer som "ingen data", "materialet viser ikke", "crawlen er ikke vedlagt" eller lignende.
    På hver slide skal du tydeligt pege på 1–3 konkrete problemer/fejl/mangler og 1–3 centrale muligheder/potentialer, ikke kun generelle beskrivelser.
 
 3) Dine anbefalinger må KUN handle om SEO-arbejde: indhold, struktur, intern linkbuilding, tekniske forbedringer, metadata/titler, CTR-forbedring i SERP og lignende. Du må IKKE anbefale PR, nyhedsbreve, betalt annoncering, SoMe-aktiviteter, offline-tiltag eller andre kanaler. Du må heller IKKE skrive anbefalinger om at forbedre datagrundlag, tracking eller rapporter (fx "brug GSC", "træk flere rapporter", "saml data", "tjek Ahrefs" osv.). Anbefalinger skal formuleres som konkrete forbedringer på kundens website og indhold – ikke som instrukser til specialisten om at hente mere data eller bruge specifikke værktøjer.
+   Når du skriver om indhold, må du ikke bruge tomme formuleringer som "bedre indhold", "udbyg indhold" eller "mere relevant indhold" uden at forklare præcist, hvad der er galt med det nuværende (fx for korte tekster, manglende vigtige søgeord, duplikeret indhold, dårlig struktur, manglende FAQ osv.). Hver indholdsanbefaling skal knyttes til en konkret type fejl eller mangel.
+   Formulér anbefalinger som kundeorienterede fokusområder (fx "Vi anbefaler, at der arbejdes med …", "Fokus for indsatsen bliver …") fremfor direkte instrukser til specialisten (som "Gennemgå …", "Udvælg …", "Brug …"). Brug 1. person flertal ("vi") eller neutrale formuleringer om, hvad der skal arbejdes med, ikke kommandosprog.
 
 4) Minimer brugen af fagbegreber. Brug kun et fagbegreb hvis det er nødvendigt, og forklar det kort i parentes første gang (fx "EEAT (Googles vurdering af troværdighed)"). 
    - EEAT må kun nævnes på Slide 8, og KUN som et supplement til konkrete observationer (f.eks. få referencer, tyndt indhold, manglende forfattersignaler). Brug det aldrig som en løs forklaring uden tydelig sammenhæng til data.
@@ -348,17 +351,23 @@ OPGAVE:
    - Du må ALDRIG nævne værktøjer som Ahrefs, Google Search Console, Screaming Frog, Google Analytics eller lignende i teksten til kunden. Analysen skal fremstå som en ren kundevenlig SEO-analyse uden omtale af, hvordan den er lavet.
 
 5) SPECIFIKKE KRAV TIL ENKELTE SLIDES:
-   - Slide 4 (Organiske søgeord med uforløst potentiale) skal, hvor data findes, aktivt bruge Ahrefs Organic Keywords + Content Gap til at pege på 3–5 konkrete temaer/typer søgninger med stort potentiale (høj volume, lavere position, manglende landingssider).
-   - Slide 5 (Hvor vinder jeres konkurrenter?) skal, hvor data findes, fokusere på tydelige mønstre fra Ahrefs Performance + Content Gap: hvilke emner/kategorier konkurrenter dominerer, og hvor kunden mangler indhold.
-   - Slide 7 (Antal refererende domæner til websitet) skal bruge faktiske tal, hvis de findes i dataen. Hvis tal ikke findes, skal du stadig skrive en generel, kundevenlig vurdering af linkstyrke og behov for flere relevante links – uden at nævne manglende data.   - Slide 8 (EEAT) skal være kort og konkret: 1 sætning der forklarer, hvordan EEAT ser ud lige nu, og 2–3 meget konkrete SEO-tiltag der kan styrke det (fx udfoldede kategoritekster, forfatterprofiler, case-sider, eksterne omtaler).
-   - Slide 11 (Fokus) skal altid opsummere de 3 vigtigste fokusområder for de næste 3–6 måneder i et meget skarpt prioriteret format:
-     * 1 kort sætning der beskriver overordnet fokus.
-     * 3 bullets: "Fokus 1: …", "Fokus 2: …", "Fokus 3: …" (hver maks ca. 60 tegn).
+   - Slide 3 (Fokus på trafikskabende organiske søgeord) skal, hvor data findes, pege på de vigtigste søgeord, der driver trafik, og adskille mellem brand/non-brand, hvis muligt. I anbefalingerne på denne slide skal du, hvor det er relevant, adskille "Spor 1 (her og nu)" for hurtige gevinster på kategorier/produktsider og "Spor 2 (langsigtet)" for guides/opskrifter og mere langsigtet indholdsopbygning.
+   - Slide 4 (Organiske søgeord med uforløst potentiale) skal, hvor data findes, aktivt bruge Ahrefs Organic Keywords + Content Gap til at pege på 3–5 konkrete temaer/typer søgninger med stort potentiale (høj volume, lavere position, manglende landingssider). Nævn disse temaer eksplicit i analysen som keyword-klynger, ikke kun som generelle idéer.
+   - Slide 5 (Hvor vinder jeres konkurrenter?) skal, hvor data findes, fokusere på tydelige mønstre fra Ahrefs Performance + Content Gap: hvilke emner/kategorier konkurrenter dominerer, og hvor kunden mangler indhold. Peg på 3–5 konkrete emneområder eller sider, hvor konkurrenter får betydelig trafik og kunden ikke har en tilsvarende stærk side. Brug kun navngivne brands (fx supermarkedskæder eller producentnavne), hvis det tydeligt understøtter pointen – ellers tal om "større kæder" eller "andre brands" i generelle termer.
+   - Slide 6 (Pagetitles) skal altid indeholde mindst 1–2 konkrete "før/efter"-eksempler på sidetitler: én linje der starter med "Nuværende:" efterfulgt af en eksisterende titel, og én linje der starter med "Foreslået:" med en forbedret, mere sælgende titel. Det gør anbefalingerne operationelle.
+   - Slide 7 (Antal refererende domæner til websitet) skal bruge faktiske tal, hvis de findes i dataen. Hvis tal ikke findes, skal du stadig skrive en generel, kundevenlig vurdering af linkstyrke og behov for flere relevante links – uden at nævne manglende data. Under anbefalinger skal du altid komme med 2–3 meget konkrete idéer til linkbuilding-tiltag (fx typer sites der kan kontaktes, konkrete indholdsidéer der kan tiltrække links), ikke kun generelle udsagn som "skab linkværdigt indhold".
+   - Slide 8 (EEAT) skal være kort og konkret: 1 sætning der forklarer, hvordan EEAT ser ud lige nu, og 2–3 meget konkrete SEO-tiltag der kan styrke det (fx udfoldede kategoritekster, forfatterprofiler, case-sider, eksterne omtaler).
+   - Slide 9 (Teknisk sundhedstjek (teknisk SEO)) skal, hvor data fra Screaming Frog findes, kommentere kort på tekniske forhold som tynde sider, duplikerede titler, åbenlyse 404/redirect-problemer, URL-struktur og intern linkdybde. Du må ikke digte om Core Web Vitals eller andre performance-metrics, hvis der ikke er konkret data. Hold fokus på det, der kan aflæses fra crawlen.
+   - Slide 11 (Fokus) skal samle de vigtigste fokusområder og anbefalinger for de næste 3–6 måneder i et meget skarpt prioriteret format:
+     * 1 kort sætning der beskriver det overordnede fokus.
+     * Under sektionen "**Anbefalinger**" skal du skrive 3–6 bullets, som hver beskriver et klart fokusområde eller indsats (fx "Fokus 1: …", "Fokus 2: …", "Fokus 3: …"). Hver bullet skal være formuleret som et kundeorienteret fokusområde, ikke en teknisk to-do.
 5b) Analysen er 100 % kundevendt. Læseren er kunden. Du må aldrig kommentere på selve analysen, datakvaliteten eller foreslå, hvordan fremtidige analyser kan blive bedre. Ingen meta-kommentarer om processen – kun konklusioner og anbefalinger, som kunden direkte kan handle på.
 
 6) Hold tonen professionel, direkte og uden fyldord. Du skriver til en marketingansvarlig, der forstår det grundlæggende i SEO, men ikke nødvendigvis arbejder i værktøjerne dagligt. Skriv kort, konkret og uden unødige sidespor.
 
 7) Skriv ALTING på dansk.
+
+8) På Slide 11 (Fokus), hvor du samler anbefalingerne, skal du så vidt muligt strukturere bullets som en lille handlingsplan: 2–3 konkrete ændringer der kan laves nu på eksisterende sider, og 1–2 forslag til nyt indhold eller tekniske indsatser, der kan bygges senere. Undgå rene floskler – hver anbefaling skal kunne omsættes direkte til en opgave i et backlog, og formuleres som et fokusområde for kunden ("Vi anbefaler, at der arbejdes med …") fremfor som direkte instrukser til specialisten.
 
 Returnér svaret som ren tekst i den viste rækkefølge, startende direkte med "Slide 1:" og uden ekstra indledning eller afsluttende kommentar.
 """
