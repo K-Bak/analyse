@@ -47,39 +47,15 @@ with col2:
 # ---------------------------------------------------------
 st.subheader("2. Datakilder")
 
-st.markdown("**Ahrefs – Performance (obligatorisk for seriøs rapport)**")
-ahrefs_perf_files = st.file_uploader(
-    "Upload Ahrefs Performance-rapport(er) (CSV – kunde og evt. konkurrenter)",
+st.markdown("**Ahrefs – upload alle relevante rapporter**")
+ahrefs_files = st.file_uploader(
+    "Upload Ahrefs-rapporter (Performance, Organic Keywords, Content Gap, Referring Domains)",
     type=["csv"],
     accept_multiple_files=True,
-    help="Fx 'domain_organic_perf*.csv' eksport fra Ahrefs. Du kan uploade flere – én pr. domæne."
-)
-
-st.markdown("**Ahrefs – Organic Keywords**")
-col_ah1, col_ah2 = st.columns(2)
-
-with col_ah1:
-    ahrefs_keywords_customer = st.file_uploader(
-        "Ahrefs Organic Keywords – KUNDE (CSV)",
-        type=["csv"],
-        accept_multiple_files=False,
-        help="Standard 'Organic keywords' eksport for kundens domæne."
-    )
-
-with col_ah2:
-    ahrefs_keywords_competitors = st.file_uploader(
-        "Ahrefs Content Gap (CSV, valgfrit)",
-        type=["csv"],
-        accept_multiple_files=True,
-        help="Upload Ahrefs Content Gap eksport (kan være én eller flere filer)."
-    )
-
-st.markdown("**Ahrefs – Backlinks / Refererende domæner (valgfrit)**")
-ahrefs_ref_domains = st.file_uploader(
-    "Ahrefs Referring Domains / Backlinks (CSV)",
-    type=["csv"],
-    accept_multiple_files=False,
-    help="Eksport der viser antal og udvikling i refererende domæner."
+    help=(
+        "Upload alle relevante Ahrefs-eksporter her (fx 'domain_organic_perf...', 'organic_keywords...', "
+        "'content_gap...', 'referring_domains...'). Appen forsøger automatisk at fordele filerne til de rigtige sektioner."
+    ),
 )
 
 st.markdown("**Screaming Frog – Crawl**")
@@ -191,25 +167,37 @@ def build_data_payload():
     """Samler alle uploadede filer i én struktureret data-payload."""
     data = {}
 
-    # Ahrefs performance (kan være flere filer)
-    if ahrefs_perf_files:
+    # Ahrefs-filer (Performance, Keywords, Content Gap, Referring Domains)
+    if ahrefs_files:
         data["ahrefs_performance"] = {}
-        for f in ahrefs_perf_files:
-            data["ahrefs_performance"].update(read_tabular_file(f))
-
-    # Ahrefs keywords – kunde
-    if ahrefs_keywords_customer:
-        data["ahrefs_keywords_customer"] = read_tabular_file(ahrefs_keywords_customer)
-
-    # Ahrefs Content Gap (valgfri, kan være flere)
-    if ahrefs_keywords_competitors:
+        data["ahrefs_keywords_customer"] = {}
         data["ahrefs_content_gap"] = {}
-        for f in ahrefs_keywords_competitors:
-            data["ahrefs_content_gap"].update(read_tabular_file(f))
+        data["ahrefs_ref_domains"] = {}
+        data["ahrefs_other"] = {}
 
-    # Ahrefs refererende domæner (valgfri)
-    if ahrefs_ref_domains:
-        data["ahrefs_ref_domains"] = read_tabular_file(ahrefs_ref_domains)
+        for f in ahrefs_files:
+            name = f.name.lower()
+            file_dict = read_tabular_file(f)
+
+            # Performance-rapporter (fx domain_organic_perf...)
+            if "perf" in name or "performance" in name:
+                data["ahrefs_performance"].update(file_dict)
+
+            # Content Gap-rapporter
+            elif "content_gap" in name or "gap" in name:
+                data["ahrefs_content_gap"].update(file_dict)
+
+            # Referring domains / backlinks
+            elif "referring" in name or "backlink" in name or "ref_domains" in name:
+                data["ahrefs_ref_domains"].update(file_dict)
+
+            # Organic keywords for kunden
+            elif "keyword" in name or "organic" in name:
+                data["ahrefs_keywords_customer"].update(file_dict)
+
+            # Hvis vi ikke kan gætte typen, gemmes filen som "other"
+            else:
+                data["ahrefs_other"].update(file_dict)
 
     # Screaming Frog
     if screaming_frog_file:
@@ -251,23 +239,18 @@ def build_docx_from_markdown(ai_output: str, customer_name: str = None, customer
             # spring tomme linjer over for at undgå for meget luft
             continue
 
-        # Slide-overskrift: "### Slide X: ..."
+        # Slide-overskrift: "### ..."
         if line.startswith("### "):
             heading_text = line[4:].strip()
             doc.add_heading(heading_text, level=1)
             continue
 
-        # Sektion: **Analyse**
-        if line.strip() == "**Analyse**":
+        # Generelle fed-overskrifter i markdown-stil, fx "**Analyse – Spor 1 (her og nu)**"
+        stripped = line.strip()
+        if stripped.startswith("**") and stripped.endswith("**") and len(stripped) > 4:
+            bold_text = stripped[2:-2].strip()
             p = doc.add_paragraph()
-            run = p.add_run("Analyse")
-            run.bold = True
-            continue
-
-        # Sektion: **Anbefalinger**
-        if line.strip() == "**Anbefalinger**":
-            p = doc.add_paragraph()
-            run = p.add_run("Anbefalinger")
+            run = p.add_run(bold_text)
             run.bold = True
             continue
 
@@ -329,8 +312,8 @@ Her er et nedklippet uddrag af data-payloaden i JSON-format (maks ca. 20.000 teg
 
 OPGAVE:
 1) For hver slide-overskrift ovenfor skal du skrive en sektion med følgende rammer:
-   - Start med "### Slide X: [overskrift]" (som angivet ovenfor), så det bliver en tydelig, større overskrift i Markdown.
-   - På næste linje skriver du "**Analyse**" (i fed) og derefter 2 korte afsnit analyse, ikke kun anbefalinger:
+   - Start med "### [overskrift]" (som angivet ovenfor), så det bliver en tydelig, større overskrift i Markdown – altså uden "Slide X:" foran.
+   - Skriv derefter 2 korte afsnit analyse, ikke kun anbefalinger:
      * Afsnit 1 beskriver kort, hvad data viser (konkrete tal, mønstre, udvikling, fordeling).
      * Afsnit 2 beskriver de vigtigste problemer/fejl/mangler og det største potentiale – vær meget konkret og ærlig.
    - Hvert afsnit må være op til ca. 3 sætninger.
@@ -343,7 +326,7 @@ OPGAVE:
 
 3) Dine anbefalinger må KUN handle om SEO-arbejde: indhold, struktur, intern linkbuilding, tekniske forbedringer, metadata/titler, CTR-forbedring i SERP og lignende. Du må IKKE anbefale PR, nyhedsbreve, betalt annoncering, SoMe-aktiviteter, offline-tiltag eller andre kanaler. Du må heller IKKE skrive anbefalinger om at forbedre datagrundlag, tracking eller rapporter (fx "brug GSC", "træk flere rapporter", "saml data", "tjek Ahrefs" osv.). Anbefalinger skal formuleres som konkrete forbedringer på kundens website og indhold – ikke som instrukser til specialisten om at hente mere data eller bruge specifikke værktøjer.
    Når du skriver om indhold, må du ikke bruge tomme formuleringer som "bedre indhold", "udbyg indhold" eller "mere relevant indhold" uden at forklare præcist, hvad der er galt med det nuværende (fx for korte tekster, manglende vigtige søgeord, duplikeret indhold, dårlig struktur, manglende FAQ osv.). Hver indholdsanbefaling skal knyttes til en konkret type fejl eller mangel.
-   Formulér anbefalinger som kundeorienterede fokusområder (fx "Vi anbefaler, at der arbejdes med …", "Fokus for indsatsen bliver …") fremfor direkte instrukser til specialisten (som "Gennemgå …", "Udvælg …", "Brug …"). Brug 1. person flertal ("vi") eller neutrale formuleringer om, hvad der skal arbejdes med, ikke kommandosprog.
+   Formulér anbefalinger som kundeorienterede fokusområder (fx bullets med "Fokus 1: Optimer …", "Fokus 2: Udbyg …", "Fokus 3: Styrk …") fremfor direkte instrukser til specialisten (som "Gennemgå …", "Udvælg …", "Brug …"). Brug 1. person flertal ("vi") eller neutrale formuleringer om, hvad der skal arbejdes med, ikke kommandosprog.
 
 4) Minimer brugen af fagbegreber. Brug kun et fagbegreb hvis det er nødvendigt, og forklar det kort i parentes første gang (fx "EEAT (Googles vurdering af troværdighed)"). 
    - EEAT må kun nævnes på Slide 8, og KUN som et supplement til konkrete observationer (f.eks. få referencer, tyndt indhold, manglende forfattersignaler). Brug det aldrig som en løs forklaring uden tydelig sammenhæng til data.
@@ -360,16 +343,18 @@ OPGAVE:
    - Slide 9 (Teknisk sundhedstjek (teknisk SEO)) skal, hvor data fra Screaming Frog findes, kommentere kort på tekniske forhold som tynde sider, duplikerede titler, åbenlyse 404/redirect-problemer, URL-struktur og intern linkdybde. Du må ikke digte om Core Web Vitals eller andre performance-metrics, hvis der ikke er konkret data. Hold fokus på det, der kan aflæses fra crawlen.
    - Slide 11 (Fokus) skal samle de vigtigste fokusområder og anbefalinger for de næste 3–6 måneder i et meget skarpt prioriteret format:
      * 1 kort sætning der beskriver det overordnede fokus.
-     * Under sektionen "**Anbefalinger**" skal du skrive 3–6 bullets, som hver beskriver et klart fokusområde eller indsats (fx "Fokus 1: …", "Fokus 2: …", "Fokus 3: …"). Hver bullet skal være formuleret som et kundeorienteret fokusområde, ikke en teknisk to-do.
+     * Under sektionen "**Anbefalinger**" skal du skrive 3–6 bullets, som hver beskriver et klart fokusområde eller indsats (fx "Fokus 1: Optimer …", "Fokus 2: Udbyg …", "Fokus 3: Styrk …"). Hver bullet skal være formuleret som et kundeorienteret fokusområde, ikke en teknisk to-do. Undgå at alle bullets starter ens; variér formuleringerne, og brug primært korte beskrivelser som "Fokus X: [indsats]" fremfor at gentage "Vi anbefaler, at der arbejdes med …" i hver bullet.
 5b) Analysen er 100 % kundevendt. Læseren er kunden. Du må aldrig kommentere på selve analysen, datakvaliteten eller foreslå, hvordan fremtidige analyser kan blive bedre. Ingen meta-kommentarer om processen – kun konklusioner og anbefalinger, som kunden direkte kan handle på.
 
 6) Hold tonen professionel, direkte og uden fyldord. Du skriver til en marketingansvarlig, der forstår det grundlæggende i SEO, men ikke nødvendigvis arbejder i værktøjerne dagligt. Skriv kort, konkret og uden unødige sidespor.
 
 7) Skriv ALTING på dansk.
 
-8) På Slide 11 (Fokus), hvor du samler anbefalingerne, skal du så vidt muligt strukturere bullets som en lille handlingsplan: 2–3 konkrete ændringer der kan laves nu på eksisterende sider, og 1–2 forslag til nyt indhold eller tekniske indsatser, der kan bygges senere. Undgå rene floskler – hver anbefaling skal kunne omsættes direkte til en opgave i et backlog, og formuleres som et fokusområde for kunden ("Vi anbefaler, at der arbejdes med …") fremfor som direkte instrukser til specialisten.
+8) På Slide 11 (Fokus), hvor du samler anbefalingerne, skal du så vidt muligt strukturere bullets som en lille handlingsplan: 2–3 konkrete ændringer der kan laves nu på eksisterende sider, og 1–2 forslag til nyt indhold eller tekniske indsatser, der kan bygges senere. Undgå rene floskler – hver anbefaling skal kunne omsættes direkte til en opgave i et backlog, og formuleres som et fokusområde for kunden (fx "Fokus 1: Optimer …", "Fokus 2: Udbyg …") fremfor som direkte instrukser til specialisten.
 
-Returnér svaret som ren tekst i den viste rækkefølge, startende direkte med "Slide 1:" og uden ekstra indledning eller afsluttende kommentar.
+9) Anbefalinger må KUN skrives i sektionen "**Anbefalinger**" under overskriften "Fokus". På alle andre slides (1–10) må du ikke skrive sætninger der starter med "Vi anbefaler", "Fokus X:" eller på anden måde beskriver konkrete næste skridt eller indsatsområder – disse slides er udelukkende analyserende og må kun beskrive, hvad data viser, hvilke problemer der findes, og hvor potentialet ligger.
+
+Returnér svaret som ren tekst i den viste rækkefølge, startende direkte med den første overskrift (fx "### Trafik fra websitets organiske søgeord") og uden ekstra indledning eller afsluttende kommentar.
 """
 
     response = client.responses.create(
@@ -400,11 +385,9 @@ run_analysis = st.button("Kør analyse")
 ai_output = None
 
 if run_analysis:
-    # Minimal validering – vi kræver i hvert fald Ahrefs perf + Ahrefs keywords (kunde)
-    if not ahrefs_perf_files:
-        st.error("Du skal som minimum uploade mindst én Ahrefs Performance-rapport (kunde + evt. konkurrenter).")
-    elif not ahrefs_keywords_customer:
-        st.error("Du skal uploade Ahrefs Organic Keywords-rapporten for kunden.")
+    # Minimal validering – vi kræver som minimum Ahrefs-data
+    if not ahrefs_files:
+        st.error("Du skal som minimum uploade Ahrefs-rapporter (Performance og Organic Keywords for kunden).")
     else:
         data_payload = build_data_payload()
 
