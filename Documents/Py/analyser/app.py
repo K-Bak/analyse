@@ -38,9 +38,9 @@ st.subheader("1. Basisinfo")
 
 col1, col2 = st.columns(2)
 with col1:
-    customer_name = st.text_input("Kundenavn", placeholder="Fx Nøddebutikken")
+    customer_name = st.text_input("Kundenavn", placeholder="Kundenavn")
 with col2:
-    customer_url = st.text_input("URL", placeholder="Fx https://www.noeddebutikken.dk")
+    customer_url = st.text_input("URL", placeholder="Website")
 
 # ---------------------------------------------------------
 # Upload – Ahrefs, Screaming Frog, GSC
