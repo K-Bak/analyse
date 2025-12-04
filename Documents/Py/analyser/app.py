@@ -1,0 +1,444 @@
+import streamlit as st
+import pandas as pd
+import zipfile
+import io
+import json
+from openai import OpenAI
+from docx import Document
+
+# ---------------------------------------------------------
+# Grundopsætning
+# ---------------------------------------------------------
+st.set_page_config(page_title="Analyser", layout="wide")
+st.title("Analyser")
+
+# ---------------------------------------------------------
+# Sidebar – modelvalg (SEO er fastlåst)
+# ---------------------------------------------------------
+st.sidebar.header("Indstillinger")
+
+# Afdeling er låst til SEO i denne version
+department = "SEO (Organisk)"
+
+model_choice = st.sidebar.selectbox(
+    "Vælg AI-model",
+    ["Grundig (GPT-5.1)", "Hurtig (GPT-4.1)"],
+    index=0
+)
+
+if "GPT-5.1" in model_choice:
+    selected_model = "gpt-5.1"
+else:
+    selected_model = "gpt-4.1"
+
+# ---------------------------------------------------------
+# Basisinfo om kunden
+# ---------------------------------------------------------
+st.subheader("1. Basisinfo")
+
+col1, col2 = st.columns(2)
+with col1:
+    customer_name = st.text_input("Kundenavn", placeholder="Fx Nøddebutikken")
+with col2:
+    customer_url = st.text_input("URL", placeholder="Fx https://www.noeddebutikken.dk")
+
+# ---------------------------------------------------------
+# Upload – Ahrefs, Screaming Frog, GSC
+# ---------------------------------------------------------
+st.subheader("2. Datakilder")
+
+st.markdown("**Ahrefs – Performance (obligatorisk for seriøs rapport)**")
+ahrefs_perf_files = st.file_uploader(
+    "Upload Ahrefs Performance-rapport(er) (CSV – kunde og evt. konkurrenter)",
+    type=["csv"],
+    accept_multiple_files=True,
+    help="Fx 'domain_organic_perf*.csv' eksport fra Ahrefs. Du kan uploade flere – én pr. domæne."
+)
+
+st.markdown("**Ahrefs – Organic Keywords**")
+col_ah1, col_ah2 = st.columns(2)
+
+with col_ah1:
+    ahrefs_keywords_customer = st.file_uploader(
+        "Ahrefs Organic Keywords – KUNDE (CSV)",
+        type=["csv"],
+        accept_multiple_files=False,
+        help="Standard 'Organic keywords' eksport for kundens domæne."
+    )
+
+with col_ah2:
+    ahrefs_keywords_competitors = st.file_uploader(
+        "Ahrefs Content Gap (CSV, valgfrit)",
+        type=["csv"],
+        accept_multiple_files=True,
+        help="Upload Ahrefs Content Gap eksport (kan være én eller flere filer)."
+    )
+
+st.markdown("**Ahrefs – Backlinks / Refererende domæner (valgfrit)**")
+ahrefs_ref_domains = st.file_uploader(
+    "Ahrefs Referring Domains / Backlinks (CSV)",
+    type=["csv"],
+    accept_multiple_files=False,
+    help="Eksport der viser antal og udvikling i refererende domæner."
+)
+
+st.markdown("**Screaming Frog – Crawl**")
+screaming_frog_file = st.file_uploader(
+    "Upload Screaming Frog-crawl (Internal All / Page Titles / Word Count)",
+    type=["csv", "xlsx", "xls", "zip"],
+    accept_multiple_files=False,
+    help="Upload enten en samlet CSV/Excel eller en ZIP med eksportfiler."
+)
+
+st.markdown("**Google Search Console – Keyword-data (valgfrit)**")
+gsc_files = st.file_uploader(
+    "Upload GSC Search Analytics eksport (CSV/Excel)",
+    type=["csv", "xlsx", "xls"],
+    accept_multiple_files=True,
+    help="Fx eksport fra 'Performance' – queries/URL/clicks/impressions/position. Du kan uploade flere filer. Excel-filer med flere faner læses som én samlet datapakke, hvor hver fane gemmes separat."
+)
+
+# ---------------------------------------------------------
+# Vælg slides og ekstra sektioner
+# ---------------------------------------------------------
+st.subheader("3. Output – Slides og ekstra sektioner")
+
+# Bemærk: Dette er KUN til at signalere fokus til modellen.
+# Den faktiske slide-struktur er låst i prompten.
+slide_options = [
+    "Trafik fra websitets organiske søgeord",
+    "Søgeord der genererer trafik",
+    "Fokus på trafikskabende organiske søgeord",
+    "Organiske søgeord med uforløst potentiale",
+    "Hvor vinder jeres konkurrenter?",
+    "Pagetitles",
+    "Antal refererende domæner til websitet",
+    "EEAT",
+    "Oprettelse af sproglag",
+    "Bedre indhold",
+    "Fokus",
+]
+
+selected_slides = st.multiselect(
+    "Vælg hvilke temaer der skal have ekstra fokus i anbefalingerne",
+    slide_options,
+    default=slide_options,
+)
+
+extra_slides_text = st.text_area(
+    "Ekstra slides / noter (valgfrit)",
+    placeholder="Skriv korte stikord eller bullets til ekstra slides, du vil have med."
+)
+
+# ---------------------------------------------------------
+# Hjælpefunktioner til filer
+# ---------------------------------------------------------
+def read_tabular_file(uploaded_file):
+    """Læs CSV/Excel/ZIP til en eller flere pandas DataFrames.
+
+    Returnerer:
+      - dict: {filename: df.to_dict(orient='records')}
+    """
+    if uploaded_file is None:
+        return {}
+
+    # ZIP med flere filer
+    if uploaded_file.name.lower().endswith(".zip"):
+        result = {}
+        with zipfile.ZipFile(uploaded_file, "r") as z:
+            for name in z.namelist():
+                if name.lower().endswith(".csv"):
+                    try:
+                        with z.open(name) as f:
+                            df = pd.read_csv(f, sep=None, engine="python")
+                        result[name] = df.to_dict(orient="records")
+                    except Exception as e:
+                        result[name] = {"error": str(e)}
+                elif name.lower().endswith((".xlsx", ".xls")):
+                    try:
+                        with z.open(name) as f:
+                            excel_bytes = f.read()
+                        excel_buf = io.BytesIO(excel_bytes)
+                        xls = pd.ExcelFile(excel_buf)
+                        for sheet_name in xls.sheet_names:
+                            df = xls.parse(sheet_name)
+                            key = f"{name}::{sheet_name}"
+                            result[key] = df.to_dict(orient="records")
+                    except Exception as e:
+                        result[name] = {"error": str(e)}
+        return result
+
+    # Almindelig CSV/Excel
+    try:
+        if uploaded_file.name.lower().endswith(".csv"):
+            df = pd.read_csv(uploaded_file, sep=None, engine="python")
+            return {uploaded_file.name: df.to_dict(orient="records")}
+        else:
+            # Læs alle faner fra Excel som separate datasæt
+            excel_bytes = uploaded_file.read()
+            excel_buf = io.BytesIO(excel_bytes)
+            xls = pd.ExcelFile(excel_buf)
+            result = {}
+            for sheet_name in xls.sheet_names:
+                df = xls.parse(sheet_name)
+                key = f"{uploaded_file.name}::{sheet_name}"
+                result[key] = df.to_dict(orient="records")
+            return result
+    except Exception as e:
+        return {uploaded_file.name: {"error": str(e)}}
+
+def build_data_payload():
+    """Samler alle uploadede filer i én struktureret data-payload."""
+    data = {}
+
+    # Ahrefs performance (kan være flere filer)
+    if ahrefs_perf_files:
+        data["ahrefs_performance"] = {}
+        for f in ahrefs_perf_files:
+            data["ahrefs_performance"].update(read_tabular_file(f))
+
+    # Ahrefs keywords – kunde
+    if ahrefs_keywords_customer:
+        data["ahrefs_keywords_customer"] = read_tabular_file(ahrefs_keywords_customer)
+
+    # Ahrefs Content Gap (valgfri, kan være flere)
+    if ahrefs_keywords_competitors:
+        data["ahrefs_content_gap"] = {}
+        for f in ahrefs_keywords_competitors:
+            data["ahrefs_content_gap"].update(read_tabular_file(f))
+
+    # Ahrefs refererende domæner (valgfri)
+    if ahrefs_ref_domains:
+        data["ahrefs_ref_domains"] = read_tabular_file(ahrefs_ref_domains)
+
+    # Screaming Frog
+    if screaming_frog_file:
+        data["screaming_frog"] = read_tabular_file(screaming_frog_file)
+
+    # Google Search Console (kan være flere filer)
+    if gsc_files:
+        data["gsc"] = {}
+        for f in gsc_files:
+            data["gsc"].update(read_tabular_file(f))
+
+    return data
+
+
+# ---------------------------------------------------------
+# DOCX-helper: Byg DOCX fra markdown-lignende AI-output
+# ---------------------------------------------------------
+def build_docx_from_markdown(ai_output: str, customer_name: str = None, customer_url: str = None) -> io.BytesIO:
+    """
+    Bygger en DOCX-rapport ud fra det markdown-lignende output (### Slide X, **Analyse**, **Anbefalinger**, bullets)
+    så det visuelt matcher online-versionen bedst muligt.
+    """
+    doc = Document()
+
+    # Titel
+    title_text = "SEO-analyse"
+    if customer_name:
+        title_text += f" – {customer_name}"
+    doc.add_heading(title_text, level=0)
+
+    if customer_url:
+        p_url = doc.add_paragraph()
+        p_url.add_run(customer_url).italic = True
+
+    lines = ai_output.splitlines()
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        if not line.strip():
+            # spring tomme linjer over for at undgå for meget luft
+            continue
+
+        # Slide-overskrift: "### Slide X: ..."
+        if line.startswith("### "):
+            heading_text = line[4:].strip()
+            doc.add_heading(heading_text, level=1)
+            continue
+
+        # Sektion: **Analyse**
+        if line.strip() == "**Analyse**":
+            p = doc.add_paragraph()
+            run = p.add_run("Analyse")
+            run.bold = True
+            continue
+
+        # Sektion: **Anbefalinger**
+        if line.strip() == "**Anbefalinger**":
+            p = doc.add_paragraph()
+            run = p.add_run("Anbefalinger")
+            run.bold = True
+            continue
+
+        # Bullets: linjer der starter med "- "
+        if line.lstrip().startswith("- "):
+            bullet_text = line.lstrip()[2:].strip()
+            doc.add_paragraph(bullet_text, style="List Bullet")
+            continue
+
+        # Fald tilbage: almindeligt afsnit
+        doc.add_paragraph(line.strip())
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+# ---------------------------------------------------------
+# OpenAI-klient
+# ---------------------------------------------------------
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+def ask_ai(
+    department: str,
+    customer_name: str,
+    customer_url: str,
+    selected_slides: list,
+    extra_slides_text: str,
+    data_payload: dict,
+):
+    # Vi klipper payload ned for at undgå alt for lange prompts
+    serialized_data = json.dumps(data_payload, default=str)[:20000]
+
+    prompt = f"""
+Du er en senior SEO-specialist og skal udarbejde en struktureret kundeanalyse,
+der senere skal lægges direkte ind som tekst til slides.
+
+Kontekst om kunden:
+- Kundenavn: {customer_name or 'Ikke angivet'}
+- URL: {customer_url or 'Ikke angivet'}
+
+Rådgiveren har markeret følgende temaer som særligt vigtige at få tydelige anbefalinger på:
+{json.dumps(selected_slides, ensure_ascii=False)}
+
+Ekstra ønsker/noter fra rådgiveren:
+{extra_slides_text or 'Ingen'}
+
+Du modtager data i JSON-format fra:
+- Ahrefs Performance (trafik, brand/non-brand, intent, osv.)
+- Ahrefs Organic Keywords (kunde + evt. konkurrenter)
+- Ahrefs Content Gap (konkurrent-sammenligning og manglende sider/temaer)
+- Ahrefs Referring Domains / Backlinks (antal og udvikling i refererende domæner)
+- Screaming Frog-crawl (titles, word count, teknisk)
+- Google Search Console eksport (queries, clicks, impressions, position)
+
+Her er et nedklippet uddrag af data-payloaden i JSON-format (maks ca. 20.000 tegn). Du SKAL bruge dette aktivt i analysen og referere til konkrete tal, hvor det er relevant:
+
+{serialized_data}
+
+OPGAVE:
+1) For hver slide-overskrift ovenfor skal du skrive en sektion med følgende rammer:
+   - Start med "### Slide X: [overskrift]" (som angivet ovenfor), så det bliver en tydelig, større overskrift i Markdown.
+   - På næste linje skriver du "**Analyse**" (i fed) og derefter 2 korte afsnit analyse, ikke kun anbefalinger:
+     * Afsnit 1 beskriver kort, hvad data viser (konkrete tal, mønstre, udvikling, fordeling).
+     * Afsnit 2 beskriver de vigtigste problemer/fejl/mangler og det største potentiale – vær meget konkret og ærlig.
+   - Hvert afsnit må være op til ca. 3 sætninger.
+   - Efter analyseafsnittene skriver du "**Anbefalinger**" (i fed) på en ny linje og derefter 2–3 punktopstillede anbefalinger, der opsummerer de vigtigste næste skridt.
+   - Samlet længde pr. slide bør typisk ligge omkring 800–1200 tegn (du må hellere skrive lidt for meget end for lidt, så længe det kan læses på én slide).
+
+2) Brug faktiske tal og mønstre fra dataen, når det er muligt. Hvis et tal ikke kan aflæses direkte, så brug kvalitative formuleringer som "lav", "mellem", "høj" fremfor at gætte procenter eller eksakte værdier. Du må ikke opfinde konkurrentnavne eller tal – brug kun navne/tal der reelt findes i dataen. Hvis data er begrænsede, skal du stadig skrive en sammenhængende analyse på hver slide baseret på de mønstre, du kan ane kombineret med generel SEO-viden – men du må ALDRIG nævne manglende data, manglende filer, værktøjer eller formuleringer som "ingen data", "materialet viser ikke", "crawlen er ikke vedlagt" eller lignende.
+   På hver slide skal du tydeligt pege på 1–3 konkrete problemer/fejl/mangler og 1–3 centrale muligheder/potentialer, ikke kun generelle beskrivelser.
+
+3) Dine anbefalinger må KUN handle om SEO-arbejde: indhold, struktur, intern linkbuilding, tekniske forbedringer, metadata/titler, CTR-forbedring i SERP og lignende. Du må IKKE anbefale PR, nyhedsbreve, betalt annoncering, SoMe-aktiviteter, offline-tiltag eller andre kanaler. Du må heller IKKE skrive anbefalinger om at forbedre datagrundlag, tracking eller rapporter (fx "brug GSC", "træk flere rapporter", "saml data", "tjek Ahrefs" osv.). Anbefalinger skal formuleres som konkrete forbedringer på kundens website og indhold – ikke som instrukser til specialisten om at hente mere data eller bruge specifikke værktøjer.
+
+4) Minimer brugen af fagbegreber. Brug kun et fagbegreb hvis det er nødvendigt, og forklar det kort i parentes første gang (fx "EEAT (Googles vurdering af troværdighed)"). 
+   - EEAT må kun nævnes på Slide 8, og KUN som et supplement til konkrete observationer (f.eks. få referencer, tyndt indhold, manglende forfattersignaler). Brug det aldrig som en løs forklaring uden tydelig sammenhæng til data.
+   - Undgå buzzwords og brede formuleringer som "relativt begrænsede E-E-A-T- og brand-signaler" uden konkret forankring i data.
+   - Du må ALDRIG nævne værktøjer som Ahrefs, Google Search Console, Screaming Frog, Google Analytics eller lignende i teksten til kunden. Analysen skal fremstå som en ren kundevenlig SEO-analyse uden omtale af, hvordan den er lavet.
+
+5) SPECIFIKKE KRAV TIL ENKELTE SLIDES:
+   - Slide 4 (Organiske søgeord med uforløst potentiale) skal, hvor data findes, aktivt bruge Ahrefs Organic Keywords + Content Gap til at pege på 3–5 konkrete temaer/typer søgninger med stort potentiale (høj volume, lavere position, manglende landingssider).
+   - Slide 5 (Hvor vinder jeres konkurrenter?) skal, hvor data findes, fokusere på tydelige mønstre fra Ahrefs Performance + Content Gap: hvilke emner/kategorier konkurrenter dominerer, og hvor kunden mangler indhold.
+   - Slide 7 (Antal refererende domæner til websitet) skal bruge faktiske tal, hvis de findes i dataen. Hvis tal ikke findes, skal du stadig skrive en generel, kundevenlig vurdering af linkstyrke og behov for flere relevante links – uden at nævne manglende data.   - Slide 8 (EEAT) skal være kort og konkret: 1 sætning der forklarer, hvordan EEAT ser ud lige nu, og 2–3 meget konkrete SEO-tiltag der kan styrke det (fx udfoldede kategoritekster, forfatterprofiler, case-sider, eksterne omtaler).
+   - Slide 11 (Fokus) skal altid opsummere de 3 vigtigste fokusområder for de næste 3–6 måneder i et meget skarpt prioriteret format:
+     * 1 kort sætning der beskriver overordnet fokus.
+     * 3 bullets: "Fokus 1: …", "Fokus 2: …", "Fokus 3: …" (hver maks ca. 60 tegn).
+5b) Analysen er 100 % kundevendt. Læseren er kunden. Du må aldrig kommentere på selve analysen, datakvaliteten eller foreslå, hvordan fremtidige analyser kan blive bedre. Ingen meta-kommentarer om processen – kun konklusioner og anbefalinger, som kunden direkte kan handle på.
+
+6) Hold tonen professionel, direkte og uden fyldord. Du skriver til en marketingansvarlig, der forstår det grundlæggende i SEO, men ikke nødvendigvis arbejder i værktøjerne dagligt. Skriv kort, konkret og uden unødige sidespor.
+
+7) Skriv ALTING på dansk.
+
+Returnér svaret som ren tekst i den viste rækkefølge, startende direkte med "Slide 1:" og uden ekstra indledning eller afsluttende kommentar.
+"""
+
+    response = client.responses.create(
+        model=selected_model,
+        input=prompt,
+    )
+
+    # Forudsætter nyere OpenAI Responses API; tilpas hvis din klient bruger anden struktur
+    try:
+        return response.output_text
+    except AttributeError:
+        # Fallback hvis klienten returnerer content-struktur
+        if hasattr(response, "output") and response.output and hasattr(response.output[0], "content"):
+            parts = []
+            for c in response.output[0].content:
+                if getattr(c, "type", "") == "output_text" or getattr(c, "type", "") == "text":
+                    parts.append(getattr(c, "text", ""))
+            return "\n".join(parts)
+        return "Der opstod en fejl ved læsning af AI-svaret."
+
+# ---------------------------------------------------------
+# Kør analyse
+# ---------------------------------------------------------
+st.subheader("4. Kør analyse")
+
+run_analysis = st.button("Kør analyse")
+
+ai_output = None
+
+if run_analysis:
+    # Minimal validering – vi kræver i hvert fald Ahrefs perf + Ahrefs keywords (kunde)
+    if not ahrefs_perf_files:
+        st.error("Du skal som minimum uploade mindst én Ahrefs Performance-rapport (kunde + evt. konkurrenter).")
+    elif not ahrefs_keywords_customer:
+        st.error("Du skal uploade Ahrefs Organic Keywords-rapporten for kunden.")
+    else:
+        data_payload = build_data_payload()
+
+        with st.spinner("Analyserer data med AI..."):
+            ai_output = ask_ai(
+                department=department,
+                customer_name=customer_name,
+                customer_url=customer_url,
+                selected_slides=selected_slides,
+                extra_slides_text=extra_slides_text,
+                data_payload=data_payload,
+            )
+
+        if ai_output:
+            st.success("Analyse gennemført.")
+            st.write("### Resultat")
+            st.write(ai_output)
+        else:
+            st.error("Der opstod en fejl i AI-svaret. Prøv igen.")
+
+# ---------------------------------------------------------
+# DOCX-download
+# ---------------------------------------------------------
+if "ai_output" not in st.session_state:
+    st.session_state["ai_output"] = None
+
+# Gem output i session, hvis der er kommet nyt
+if ai_output:
+    st.session_state["ai_output"] = ai_output
+
+if st.session_state.get("ai_output"):
+    st.markdown("---")
+    st.subheader("Download rapport")
+
+    docx_buffer = build_docx_from_markdown(
+        ai_output=st.session_state["ai_output"],
+        customer_name=customer_name,
+        customer_url=customer_url,
+    )
+
+    st.download_button(
+        label="Download DOCX-rapport",
+        data=docx_buffer,
+        file_name=f"SEO_analyse_{(customer_name or 'kunde').replace(' ', '_')}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
