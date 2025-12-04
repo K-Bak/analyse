@@ -217,7 +217,7 @@ def build_data_payload():
 # ---------------------------------------------------------
 def build_docx_from_markdown(ai_output: str, customer_name: str = None, customer_url: str = None) -> io.BytesIO:
     """
-    Bygger en DOCX-rapport ud fra det markdown-lignende output (### Slide X, **Analyse**, **Anbefalinger**, bullets)
+    Bygger en DOCX-rapport ud fra det markdown-lignende output (### ..., **Anbefalinger**, bullets)
     så det visuelt matcher online-versionen bedst muligt.
     """
     doc = Document()
@@ -273,17 +273,16 @@ def build_docx_from_markdown(ai_output: str, customer_name: str = None, customer
 # ---------------------------------------------------------
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def ask_ai(
-    department: str,
+# ---------------------------------------------------------
+# Prompt-builder (fælles for sync + streaming)
+# ---------------------------------------------------------
+def build_prompt(
     customer_name: str,
     customer_url: str,
     selected_slides: list,
     extra_slides_text: str,
-    data_payload: dict,
-):
-    # Vi klipper payload ned for at undgå alt for lange prompts
-    serialized_data = json.dumps(data_payload, default=str)[:20000]
-
+    serialized_data: str,
+) -> str:
     prompt = f"""
 Du er en senior SEO-specialist og skal udarbejde en struktureret kundeanalyse,
 der senere skal lægges direkte ind som tekst til slides.
@@ -356,27 +355,83 @@ OPGAVE:
 
 Returnér svaret som ren tekst i den viste rækkefølge, startende direkte med den første overskrift (fx "### Trafik fra websitets organiske søgeord") og uden ekstra indledning eller afsluttende kommentar.
 """
+    return prompt
+
+# ---------------------------------------------------------
+# Synkront AI-kald (beholdes som fallback)
+# ---------------------------------------------------------
+def ask_ai(
+    department: str,
+    customer_name: str,
+    customer_url: str,
+    selected_slides: list,
+    extra_slides_text: str,
+    data_payload: dict,
+):
+    # Vi klipper payload ned for at undgå alt for lange prompts
+    serialized_data = json.dumps(data_payload, default=str)[:20000]
+    prompt = build_prompt(
+        customer_name=customer_name,
+        customer_url=customer_url,
+        selected_slides=selected_slides,
+        extra_slides_text=extra_slides_text,
+        serialized_data=serialized_data,
+    )
 
     response = client.responses.create(
         model=selected_model,
         input=prompt,
     )
 
-    # Forudsætter nyere OpenAI Responses API; tilpas hvis din klient bruger anden struktur
     try:
         return response.output_text
     except AttributeError:
-        # Fallback hvis klienten returnerer content-struktur
         if hasattr(response, "output") and response.output and hasattr(response.output[0], "content"):
             parts = []
             for c in response.output[0].content:
-                if getattr(c, "type", "") == "output_text" or getattr(c, "type", "") == "text":
+                if getattr(c, "type", "") in ("output_text", "text"):
                     parts.append(getattr(c, "text", ""))
             return "\n".join(parts)
         return "Der opstod en fejl ved læsning af AI-svaret."
 
 # ---------------------------------------------------------
-# Kør analyse
+# Streaming AI-kald
+# ---------------------------------------------------------
+def ask_ai_stream(
+    department: str,
+    customer_name: str,
+    customer_url: str,
+    selected_slides: list,
+    extra_slides_text: str,
+    data_payload: dict,
+):
+    """Streaming-version af AI-kaldet – yield'er tekststumper løbende."""
+    serialized_data = json.dumps(data_payload, default=str)[:20000]
+    prompt = build_prompt(
+        customer_name=customer_name,
+        customer_url=customer_url,
+        selected_slides=selected_slides,
+        extra_slides_text=extra_slides_text,
+        serialized_data=serialized_data,
+    )
+
+    with client.responses.stream(
+        model=selected_model,
+        input=prompt,
+    ) as stream:
+        for event in stream:
+            try:
+                # Responses streaming events: vi går efter output_text.delta events
+                if hasattr(event, "type") and event.type == "response.output_text.delta":
+                    delta_text = getattr(event, "delta", None)
+                    if delta_text:
+                        yield str(delta_text)
+            except Exception:
+                # Ignorer events vi ikke kan parse – fortsæt streaming
+                continue
+
+# ---------------------------------------------------------
+# Kør analyse (med streaming)
 # ---------------------------------------------------------
 st.subheader("4. Kør analyse")
 
@@ -391,22 +446,33 @@ if run_analysis:
     else:
         data_payload = build_data_payload()
 
-        with st.spinner("Analyserer data med AI..."):
-            ai_output = ask_ai(
+        placeholder = st.empty()
+        status = st.empty()
+        status.write("Analyserer data med AI (streaming)...")
+
+        full_text = ""
+
+        try:
+            for chunk in ask_ai_stream(
                 department=department,
                 customer_name=customer_name,
                 customer_url=customer_url,
                 selected_slides=selected_slides,
                 extra_slides_text=extra_slides_text,
                 data_payload=data_payload,
-            )
-
-        if ai_output:
-            st.success("Analyse gennemført.")
-            st.write("### Resultat")
-            st.write(ai_output)
+            ):
+                full_text += chunk
+                placeholder.markdown("### Resultat\n\n" + full_text)
+        except Exception as e:
+            status.empty()
+            st.error(f"Der opstod en fejl i AI-streamingen: {e}")
         else:
-            st.error("Der opstod en fejl i AI-svaret. Prøv igen.")
+            status.empty()
+            if full_text.strip():
+                st.success("Analyse gennemført.")
+                ai_output = full_text
+            else:
+                st.error("Der opstod en fejl i AI-svaret. Prøv igen.")
 
 # ---------------------------------------------------------
 # DOCX-download
