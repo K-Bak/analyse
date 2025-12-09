@@ -3,6 +3,7 @@ import pandas as pd
 import zipfile
 import io
 import json
+import base64
 from openai import OpenAI
 from docx import Document
 
@@ -105,6 +106,40 @@ extra_slides_text = st.text_area(
     "Ekstra slides / noter (valgfrit)",
     placeholder="Skriv korte stikord eller bullets til ekstra slides, du vil have med."
 )
+
+# Per-slide kommentarer fra rådgiveren
+slide_notes = {}
+# Per-slide billeder (valgfrit)
+slide_images = {}
+
+with st.expander("Tilføj kommentarer og billeder til de enkelte slides (valgfrit)"):
+    st.markdown(
+        "Skriv kort, hvad der er vigtigst at få med på hvert slide, og upload evt. et billede "
+        "som du vil have med i analysen (fx SERP-screenshot, graf m.m.)."
+    )
+    for i, slide in enumerate(slide_options):
+        # Titel for selve slidet
+        st.markdown(f"**{slide}**")
+
+        # To kolonner: kommentar (bred) + billede (smal)
+        col_comment, col_image = st.columns([3, 1])
+
+        with col_comment:
+            slide_notes[slide] = st.text_area(
+                "Kommentar",
+                placeholder="Fx: Fokuser på konkurrenceprægede søgeord og fundament for hurtige resultater.",
+                key=f"note_{slide}",
+            )
+
+        with col_image:
+            slide_images[slide] = st.file_uploader(
+                "Billede (valgfrit)",
+                type=["png", "jpg", "jpeg", "webp"],
+                key=f"img_{i}",
+            )
+
+        # Visuel separator mellem slides
+        st.markdown("---")
 
 # ---------------------------------------------------------
 # Hjælpefunktioner til filer
@@ -281,6 +316,7 @@ def build_prompt(
     customer_url: str,
     selected_slides: list,
     extra_slides_text: str,
+    slide_notes_text: str,
     serialized_data: str,
 ) -> str:
     prompt = f"""
@@ -297,13 +333,16 @@ Rådgiveren har markeret følgende temaer som særligt vigtige at få tydelige a
 Ekstra ønsker/noter fra rådgiveren:
 {extra_slides_text or 'Ingen'}
 
+Rådgiverens kommentarer til de enkelte slides (brug dem aktivt til at vinkle og prioritere indholdet på hvert slide):
+{slide_notes_text or 'Ingen specifikke kommentarer til enkelte slides'}
+
 Du modtager data i JSON-format fra:
 - Ahrefs Performance (trafik, brand/non-brand, intent, osv.)
 - Ahrefs Organic Keywords (kunde + evt. konkurrenter)
 - Ahrefs Content Gap (konkurrent-sammenligning og manglende sider/temaer)
 - Ahrefs Referring Domains / Backlinks (antal og udvikling i refererende domæner)
 - Screaming Frog-crawl (titles, word count, teknisk)
-- Google Search Console eksport (queries, clicks, impressions, position)
+- Google Search Console eksport (queries, clicks, impressions, position) hvis det findes – men analysen skal altid kunne stå alene på Ahrefs- og crawl-data.
 
 Her er et nedklippet uddrag af data-payloaden i JSON-format (maks ca. 20.000 tegn). Du SKAL bruge dette aktivt i analysen og referere til konkrete tal, hvor det er relevant:
 
@@ -312,16 +351,18 @@ Her er et nedklippet uddrag af data-payloaden i JSON-format (maks ca. 20.000 teg
 OPGAVE:
 1) For hver slide-overskrift ovenfor skal du skrive en sektion med følgende rammer:
    - Start med "### [overskrift]" (som angivet ovenfor), så det bliver en tydelig, større overskrift i Markdown – altså uden "Slide X:" foran.
-   - Skriv derefter 2 korte afsnit analyse, ikke kun anbefalinger:
+   - Skriv derefter 2–3 meget korte analyseafsnit, ikke kun anbefalinger:
      * Afsnit 1 beskriver kort, hvad data viser (konkrete tal, mønstre, udvikling, fordeling).
-     * Afsnit 2 beskriver de vigtigste problemer/fejl/mangler og det største potentiale – vær meget konkret og ærlig.
-   - Hvert afsnit må være op til ca. 3 sætninger.
+     * Afsnit 2 (og evt. 3) beskriver de vigtigste problemer/fejl/mangler og det største potentiale – vær meget konkret og ærlig.
+   - Hvert afsnit må kun være 1–2 sætninger, og der skal være en tom linje mellem afsnittene, så teksten bliver let at kopiere direkte ind på et slide.
+   - Den samlede tekst på hver slide (inkl. mellemrum) må som tommelfingerregel ikke overstige ca. 450–500 tegn. Det er vigtigere at være skarp og selektiv end udtømmende.
    - På slides 1–10 skriver du KUN analyse (ingen sektion "Anbefalinger" på disse slides).
    - På Slide 11 (Fokus) skriver du efter analysen en tydelig sektion med samlede anbefalinger for hele analysen: start med "**Anbefalinger**" (i fed) på en ny linje og skriv derefter 3–6 punktopstillede anbefalinger, der opsummerer de vigtigste næste skridt på tværs af alle slides.
-   - Samlet længde pr. slide bør typisk ligge omkring 800–1200 tegn (du må hellere skrive lidt for meget end for lidt, så længe det kan læses på én slide).
 
 2) Brug faktiske tal og mønstre fra dataen, når det er muligt. Hvis et tal ikke kan aflæses direkte, så brug kvalitative formuleringer som "lav", "mellem", "høj" fremfor at gætte procenter eller eksakte værdier. Du må ikke opfinde konkurrentnavne eller tal – brug kun navne/tal der reelt findes i dataen. Hvis data er begrænsede, skal du stadig skrive en sammenhængende analyse på hver slide baseret på de mønstre, du kan ane kombineret med generel SEO-viden – men du må ALDRIG nævne manglende data, manglende filer, værktøjer eller formuleringer som "ingen data", "materialet viser ikke", "crawlen er ikke vedlagt" eller lignende.
    På hver slide skal du tydeligt pege på 1–3 konkrete problemer/fejl/mangler og 1–3 centrale muligheder/potentialer, ikke kun generelle beskrivelser.
+
+   Derudover må du ikke skrive om "kendskabsgrad", "brand awareness" eller lignende begreber. Du må gerne bruge forskelle mellem brand- og non-brand-søgninger til at forklare, hvilke typer søgninger der driver trafik, men du må ikke forsøge at forklare eller vurdere generel kendskabsgrad i markedet.
 
 3) Dine anbefalinger må KUN handle om SEO-arbejde: indhold, struktur, intern linkbuilding, tekniske forbedringer, metadata/titler, CTR-forbedring i SERP og lignende. Du må IKKE anbefale PR, nyhedsbreve, betalt annoncering, SoMe-aktiviteter, offline-tiltag eller andre kanaler. Du må heller IKKE skrive anbefalinger om at forbedre datagrundlag, tracking eller rapporter (fx "brug GSC", "træk flere rapporter", "saml data", "tjek Ahrefs" osv.). Anbefalinger skal formuleres som konkrete forbedringer på kundens website og indhold – ikke som instrukser til specialisten om at hente mere data eller bruge specifikke værktøjer.
    Når du skriver om indhold, må du ikke bruge tomme formuleringer som "bedre indhold", "udbyg indhold" eller "mere relevant indhold" uden at forklare præcist, hvad der er galt med det nuværende (fx for korte tekster, manglende vigtige søgeord, duplikeret indhold, dårlig struktur, manglende FAQ osv.). Hver indholdsanbefaling skal knyttes til en konkret type fejl eller mangel.
@@ -333,6 +374,7 @@ OPGAVE:
    - Du må ALDRIG nævne værktøjer som Ahrefs, Google Search Console, Screaming Frog, Google Analytics eller lignende i teksten til kunden. Analysen skal fremstå som en ren kundevenlig SEO-analyse uden omtale af, hvordan den er lavet.
 
 5) SPECIFIKKE KRAV TIL ENKELTE SLIDES:
+   - Slide 2 (Søgeord der genererer trafik) skal fokusere på, at kunden ligger stærkt på centrale søgeord med høj konkurrence, hvor der er mange andre stærke domæner til stede. Forklar kort, hvordan de stærke placeringer giver et solidt fundament for hurtigere ekstra resultater og gør det oplagt at bygge videre med relaterede søgeord og long-tail-variationer. Undgå at gøre brand-søgninger til hovedpointen på dette slide – de må kun indgå som en mindre nuance.
    - Slide 3 (Fokus på trafikskabende organiske søgeord) skal, hvor data findes, pege på de vigtigste søgeord, der driver trafik, og adskille mellem brand/non-brand, hvis muligt. I anbefalingerne på denne slide skal du, hvor det er relevant, adskille "Spor 1 (her og nu)" for hurtige gevinster på kategorier/produktsider og "Spor 2 (langsigtet)" for guides/opskrifter og mere langsigtet indholdsopbygning.
    - Slide 4 (Organiske søgeord med uforløst potentiale) skal, hvor data findes, aktivt bruge Ahrefs Organic Keywords + Content Gap til at pege på 3–5 konkrete temaer/typer søgninger med stort potentiale (høj volume, lavere position, manglende landingssider). Nævn disse temaer eksplicit i analysen som keyword-klynger, ikke kun som generelle idéer.
    - Slide 5 (Hvor vinder jeres konkurrenter?) skal, hvor data findes, fokusere på tydelige mønstre fra Ahrefs Performance + Content Gap: hvilke emner/kategorier konkurrenter dominerer, og hvor kunden mangler indhold. Peg på 3–5 konkrete emneområder eller sider, hvor konkurrenter får betydelig trafik og kunden ikke har en tilsvarende stærk side. Brug kun navngivne brands (fx supermarkedskæder eller producentnavne), hvis det tydeligt understøtter pointen – ellers tal om "større kæder" eller "andre brands" i generelle termer.
@@ -366,21 +408,74 @@ def ask_ai(
     customer_url: str,
     selected_slides: list,
     extra_slides_text: str,
+    slide_notes: dict,
+    slide_images: dict,
     data_payload: dict,
 ):
     # Vi klipper payload ned for at undgå alt for lange prompts
     serialized_data = json.dumps(data_payload, default=str)[:20000]
+    slide_notes_text = ""
+    if slide_notes:
+        lines = []
+        for slide, note in slide_notes.items():
+            note_clean = (note or "").strip()
+            if not note_clean:
+                note_clean = "Ingen specifik kommentar."
+            lines.append(f"- {slide}: {note_clean}")
+        slide_notes_text = "\n".join(lines)
     prompt = build_prompt(
         customer_name=customer_name,
         customer_url=customer_url,
         selected_slides=selected_slides,
         extra_slides_text=extra_slides_text,
+        slide_notes_text=slide_notes_text,
         serialized_data=serialized_data,
     )
 
+    # Byg multimodal content med tekst + evt. billeder
+    content = [
+        {
+            "type": "input_text",
+            "text": prompt,
+        }
+    ]
+
+    # Tilføj billeder pr. slide, hvis der er uploadet nogen
+    if slide_images:
+        for slide, uploaded_img in slide_images.items():
+            if uploaded_img is None:
+                continue
+            try:
+                img_bytes = uploaded_img.getvalue()
+                b64_img = base64.b64encode(img_bytes).decode("utf-8")
+                # Først lidt kontekst-tekst, så modellen ved hvilket slide billedet hører til
+                content.append(
+                    {
+                        "type": "input_text",
+                        "text": f"Billede til slide '{slide}'. Brug dette billede som ekstra kontekst i din analyse af det tilhørende tema.",
+                    }
+                )
+                # Selve billedet (som data-URL til Responses API)
+                mime = uploaded_img.type or "image/png"
+                data_url = f"data:{mime};base64,{b64_img}"
+                content.append(
+                    {
+                        "type": "input_image",
+                        "image_url": data_url,
+                    }
+                )
+            except Exception:
+                # Hvis noget går galt med et enkelt billede, ignorerer vi det og fortsætter
+                continue
+
     response = client.responses.create(
         model=selected_model,
-        input=prompt,
+        input=[
+            {
+                "role": "user",
+                "content": content,
+            }
+        ],
     )
 
     try:
@@ -403,21 +498,71 @@ def ask_ai_stream(
     customer_url: str,
     selected_slides: list,
     extra_slides_text: str,
+    slide_notes: dict,
+    slide_images: dict,
     data_payload: dict,
 ):
     """Streaming-version af AI-kaldet – yield'er tekststumper løbende."""
     serialized_data = json.dumps(data_payload, default=str)[:20000]
+    slide_notes_text = ""
+    if slide_notes:
+        lines = []
+        for slide, note in slide_notes.items():
+            note_clean = (note or "").strip()
+            if not note_clean:
+                note_clean = "Ingen specifik kommentar."
+            lines.append(f"- {slide}: {note_clean}")
+        slide_notes_text = "\n".join(lines)
     prompt = build_prompt(
         customer_name=customer_name,
         customer_url=customer_url,
         selected_slides=selected_slides,
         extra_slides_text=extra_slides_text,
+        slide_notes_text=slide_notes_text,
         serialized_data=serialized_data,
     )
 
+    # Byg multimodal content med tekst + evt. billeder
+    content = [
+        {
+            "type": "input_text",
+            "text": prompt,
+        }
+    ]
+
+    # Tilføj billeder pr. slide, hvis der er uploadet nogen
+    if slide_images:
+        for slide, uploaded_img in slide_images.items():
+            if uploaded_img is None:
+                continue
+            try:
+                img_bytes = uploaded_img.getvalue()
+                b64_img = base64.b64encode(img_bytes).decode("utf-8")
+                content.append(
+                    {
+                        "type": "input_text",
+                        "text": f"Billede til slide '{slide}'. Brug dette billede som ekstra kontekst i din analyse af det tilhørende tema.",
+                    }
+                )
+                mime = uploaded_img.type or "image/png"
+                data_url = f"data:{mime};base64,{b64_img}"
+                content.append(
+                    {
+                        "type": "input_image",
+                        "image_url": data_url,
+                    }
+                )
+            except Exception:
+                continue
+
     with client.responses.stream(
         model=selected_model,
-        input=prompt,
+        input=[
+            {
+                "role": "user",
+                "content": content,
+            }
+        ],
     ) as stream:
         for event in stream:
             try:
@@ -459,6 +604,8 @@ if run_analysis:
                 customer_url=customer_url,
                 selected_slides=selected_slides,
                 extra_slides_text=extra_slides_text,
+                slide_notes=slide_notes,
+                slide_images=slide_images,
                 data_payload=data_payload,
             ):
                 full_text += chunk
