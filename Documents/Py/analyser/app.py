@@ -8,9 +8,24 @@ from openai import OpenAI
 from docx import Document
 
 # ---------------------------------------------------------
-# Grundopsætning
+# Grundopsætning (SKAL ligge øverst)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Analyser", layout="wide")
+
+# --- SIKKERHEDSTJEK ---
+# Vi tjekker om URL'en indeholder vores hemmelige nøgle
+query_params = st.query_params  # Henter parametre fra URL'en
+
+# Hvis nøglen mangler eller er forkert, stop appen
+# Vi bruger .get() så den ikke crasher hvis parameteren slet ikke findes
+if query_params.get("access") != "GeneraxionKey":
+    st.error("⛔ Adgang nægtet.")
+    st.info("Denne app kan kun tilgås gennem Generaxions interne systemer.")
+    st.stop() # Stopper koden her, så resten ikke vises
+
+# ---------------------------------------------------------
+# Selve Appen starter her
+# ---------------------------------------------------------
 st.title("Analyser")
 
 # ---------------------------------------------------------
