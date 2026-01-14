@@ -12,13 +12,23 @@ from docx import Document
 # ---------------------------------------------------------
 st.set_page_config(page_title="Analyser", layout="wide")
 
+def get_secret(key: str, default: str | None = None) -> str | None:
+    if key in st.secrets:
+        return str(st.secrets.get(key))
+    return os.getenv(key, default)
+
+ACCESS_KEY = get_secret("ACCESS_KEY")
+
+if not ACCESS_KEY:
+    st.error("Manglende ACCESS_KEY i Streamlit secrets.")
+    st.stop()
 # --- SIKKERHEDSTJEK ---
 # Vi tjekker om URL'en indeholder vores hemmelige nøgle
 query_params = st.query_params  # Henter parametre fra URL'en
 
 # Hvis nøglen mangler eller er forkert, stop appen
 # Vi bruger .get() så den ikke crasher hvis parameteren slet ikke findes
-if query_params.get("access") != "GeneraxionKey":
+if query_params.get("access") != ACCESS_KEY:
     st.error("⛔ Adgang nægtet.")
     st.info("Denne app kan kun tilgås gennem Generaxions interne systemer.")
     st.stop() # Stopper koden her, så resten ikke vises
